@@ -634,11 +634,13 @@ static int is_whitelisted(const apr_sockaddr_t *client, const evasive_config *cf
             struct in_addr addrv4 = client->sa.sin.sin_addr;
             addrv4.s_addr &= node->mask.v4;
             rc = memcmp(&node->ip.v4, &addrv4, sizeof(node->ip.v4));
-#if APR_HAVE_IPV6
         } else {
+#if APR_HAVE_IPV6
             struct in6_addr addrv6 = client->sa.sin6.sin6_addr;
             ipv6_apply_mask(&addrv6, &node->mask.v6);
             rc = memcmp(&node->ip.v6, &addrv6, sizeof(node->ip.v6));
+#else
+            continue;
 #endif
         }
 
