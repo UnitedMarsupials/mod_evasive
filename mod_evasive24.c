@@ -251,6 +251,7 @@ err:
     return -1;
 }
 
+#if APR_HAVE_IPV6
 static void ipv6_cidr_bits_to_mask(unsigned long cidr_bits, struct in6_addr *mask)
 {
     for (unsigned i = 0; i < 4; i++) {
@@ -274,12 +275,15 @@ static void ipv6_apply_mask(struct in6_addr *restrict addr, const struct in6_add
     for (unsigned i = 0; i < 4; i++)
         addr->s6_addr32[i] &= mask->s6_addr32[i];
 }
+#endif
 
 static const char *whitelist_ip(__attribute__((unused)) cmd_parms *cmd, void *dconfig, const char *ip)
 {
     evasive_config *cfg = (evasive_config *) dconfig;
     struct in_addr ipv4;
+#if APR_HAVE_IPV6
     struct in6_addr ipv6, maskv6;
+#endif
     struct ip_node *newdata;
     const char *ip_parse = ip;
     char *ip_copy = NULL;
@@ -306,9 +310,11 @@ static const char *whitelist_ip(__attribute__((unused)) cmd_parms *cmd, void *dc
         family = AF_INET;
         wildcard = 1;
         rc = parse_wildcard(ip_parse, &ipv4, &maskv4);
+#if APR_HAVE_IPV6
     } else if (strchr(ip_parse, ':') != NULL) {
         family = AF_INET6;
         rc = inet_pton(AF_INET6, ip_parse, &ipv6);
+#endif
     } else {
         family = AF_INET;
         rc = inet_pton(AF_INET, ip_parse, &ipv4);
@@ -338,9 +344,11 @@ static const char *whitelist_ip(__attribute__((unused)) cmd_parms *cmd, void *dc
             maskv4 = ~((UINT32_C(1) << (32 - mask_bits)) - 1);
             maskv4 = htobe32(maskv4);
             ipv4.s_addr &= maskv4;
+#if APR_HAVE_IPV6
         } else {
             ipv6_cidr_bits_to_mask(mask_bits, &maskv6);
             ipv6_apply_mask(&ipv6, &maskv6);
+#endif
         }
     }
 
@@ -357,12 +365,14 @@ static const char *whitelist_ip(__attribute__((unused)) cmd_parms *cmd, void *dc
             .ip.v4 = ipv4,
             .mask.v4 = maskv4,
         };
+#if APR_HAVE_IPV6
     } else {
         cfg->ip_whitelist.data[cfg->ip_whitelist.size++] = (struct ip_node) {
             .family = AF_INET6,
             .ip.v6 = ipv6,
             .mask.v6 = maskv6,
         };
+#endif
     }
 
     return NULL;
@@ -624,10 +634,12 @@ static int is_whitelisted(const apr_sockaddr_t *client, const evasive_config *cf
             struct in_addr addrv4 = client->sa.sin.sin_addr;
             addrv4.s_addr &= node->mask.v4;
             rc = memcmp(&node->ip.v4, &addrv4, sizeof(node->ip.v4));
+#if APR_HAVE_IPV6
         } else {
             struct in6_addr addrv6 = client->sa.sin6.sin6_addr;
             ipv6_apply_mask(&addrv6, &node->mask.v6);
             rc = memcmp(&node->ip.v6, &addrv6, sizeof(node->ip.v6));
+#endif
         }
 
         if (rc == 0)
